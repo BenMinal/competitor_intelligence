@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Comment Sentiment Analysis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .form-section {
+            padding: 40px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e1e1;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .analyze-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s;
+        }
+
+        .analyze-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .export-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .export-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+            padding: 40px;
+            background: #f8f9fa;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .insights-section {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .insights-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .theme-item, .insight-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .positive { border-left-color: #28a745; }
+        .negative { border-left-color: #dc3545; }
+
+        .theme-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .theme-mentions {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .sample-comments {
+            margin-top: 10px;
+            font-style: italic;
+            color: #555;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .video-info {
+            margin-bottom: 20px;
+        }
+
+        .video-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🕵️ Competitor Intelligence Analyzer</h1>
+            <p>Discover what audiences really think about your competitors' products from YouTube comments</p>
+        </div>
+
+        <div class="form-section">
+            <form id="analysisForm">
+                <div class="form-group">
+                    <label for="productName">Competitor Product Name:</label>
+                    <input type="text" id="productName" name="productName" placeholder="Enter the competitor's product name to analyze" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="youtubeUrls">YouTube URLs (one per line):</label>
+                    <textarea id="youtubeUrls" name="youtubeUrls" placeholder="https://www.youtube.com/watch?v=...&#10;https://www.youtube.com/watch?v=...&#10;https://youtu.be/..." required></textarea>
+                    <small style="color: #666;">Enter YouTube URLs featuring your competitor's product (reviews, demos, discussions). We'll analyze the top 50 comments from each video to reveal what customers really think.</small>
+                </div>
+
+                <button type="submit" class="analyze-btn" id="analyzeBtn">
+                    🕵️ Analyze Competitor
+                </button>
+            </form>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Analyzing comments... This may take a few moments.</p>
+        </div>
+
+        <div class="results" id="results">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>🕵️ Competitive Intelligence Report</h2>
+                <button id="exportPdfBtn" class="export-btn" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                    📄 Export PDF Report
+                </button>
+            </div>
+            
+            <div class="video-info" id="videoInfo"></div>
+            
+            <div class="stats-grid" id="statsGrid"></div>
+            
+            <div class="insights-section">
+                <h3>🏆 What Customers Love About This Competitor</h3>
+                <div id="positiveThemes"></div>
+            </div>
+
+            <div class="insights-section">
+                <h3>💥 Pain Points & Customer Frustrations</h3>
+                <div id="negativeThemes"></div>
+            </div>
+
+            <div class="insights-section">
+                <h3>🎯 Competitor's Key Selling Points</h3>
+                <div id="productStrengths"></div>
+            </div>
+
+            <div class="insights-section">
+                <h3>🎪 Competitor's Vulnerabilities</h3>
+                <div id="productWeaknesses"></div>
+            </div>
+
+            <div class="insights-section">
+                <h3>💡 Strategic Marketing Opportunities</h3>
+                <div id="marketingInsights"></div>
+            </div>
+
+            <div class="insights-section">
+                <h3>🚀 How You Can Differentiate</h3>
+                <div id="suggestions"></div>
+            </div>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        document.getElementById('analysisForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const productName = document.getElementById('productName').value.trim();
+            const youtubeUrls = document.getElementById('youtubeUrls').value.trim().split('\n').filter(url => url.trim());
+            
+            if (!productName || !youtubeUrls.length) {
+                showError('Please provide both product name and YouTube URLs.');
+                return;
+            }
+
+            // Show loading state
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = true;
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        urls: youtubeUrls,
+                        product_name: productName
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Analysis failed');
+                }
+
+                displayResults(data);
+
+            } catch (error) {
+                showError('Error: ' + error.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('analyzeBtn').disabled = false;
+            }
+        });
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function displayResults(data) {
+            // Video info
+            const videoInfoDiv = document.getElementById('videoInfo');
+            videoInfoDiv.innerHTML = '<h3>📺 Analyzed Videos</h3>';
+            data.video_info.forEach(video => {
+                videoInfoDiv.innerHTML += `
+                    <div class="video-item">
+                        <strong>${video.title}</strong><br>
+                        <small style="color: #666;">${video.url}</small>
+                    </div>
+                `;
+            });
+
+            // Stats
+            const analysis = data.analysis;
+            const sentiment = analysis.sentiment_summary;
+            const statsGrid = document.getElementById('statsGrid');
+            
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-number">${data.total_videos}</div>
+                    <div class="stat-label">Videos Analyzed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${data.total_comments}</div>
+                    <div class="stat-label">Comments Analyzed</div>
+                </div>
+                <div class="stat-card positive">
+                    <div class="stat-number">${sentiment.positive_count || 0}</div>
+                    <div class="stat-label">Positive Comments</div>
+                </div>
+                <div class="stat-card negative">
+                    <div class="stat-number">${sentiment.negative_count || 0}</div>
+                    <div class="stat-label">Negative Comments</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${sentiment.neutral_count || 0}</div>
+                    <div class="stat-label">Neutral Comments</div>
+                </div>
+            `;
+
+            // Positive themes
+            const positiveThemes = document.getElementById('positiveThemes');
+            positiveThemes.innerHTML = '';
+            if (analysis.key_themes && analysis.key_themes.positive_aspects) {
+                analysis.key_themes.positive_aspects.forEach(theme => {
+                    positiveThemes.innerHTML += `
+                        <div class="theme-item positive">
+                            <div class="theme-title">${theme.theme}</div>
+                            <div class="theme-mentions">Mentioned ${theme.mentions} times</div>
+                            ${theme.sample_comments ? `<div class="sample-comments">"${theme.sample_comments.slice(0, 2).join('" • "')}"</div>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            // Negative themes
+            const negativeThemes = document.getElementById('negativeThemes');
+            negativeThemes.innerHTML = '';
+            if (analysis.key_themes && analysis.key_themes.negative_aspects) {
+                analysis.key_themes.negative_aspects.forEach(theme => {
+                    negativeThemes.innerHTML += `
+                        <div class="theme-item negative">
+                            <div class="theme-title">${theme.theme}</div>
+                            <div class="theme-mentions">Mentioned ${theme.mentions} times</div>
+                            ${theme.sample_comments ? `<div class="sample-comments">"${theme.sample_comments.slice(0, 2).join('" • "')}"</div>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            // Product strengths
+            const productStrengths = document.getElementById('productStrengths');
+            productStrengths.innerHTML = '';
+            if (analysis.product_insights && analysis.product_insights.strengths) {
+                analysis.product_insights.strengths.forEach(strength => {
+                    productStrengths.innerHTML += `
+                        <div class="insight-item positive">
+                            <div class="theme-title">${strength.feature}</div>
+                            <div>${strength.description}</div>
+                            <div class="theme-mentions">Frequency: ${strength.frequency}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Product weaknesses
+            const productWeaknesses = document.getElementById('productWeaknesses');
+            productWeaknesses.innerHTML = '';
+            if (analysis.product_insights && analysis.product_insights.weaknesses) {
+                analysis.product_insights.weaknesses.forEach(weakness => {
+                    productWeaknesses.innerHTML += `
+                        <div class="insight-item negative">
+                            <div class="theme-title">${weakness.feature}</div>
+                            <div>${weakness.description}</div>
+                            <div class="theme-mentions">Frequency: ${weakness.frequency}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Marketing insights
+            const marketingInsights = document.getElementById('marketingInsights');
+            marketingInsights.innerHTML = '';
+            if (analysis.marketing_insights) {
+                analysis.marketing_insights.forEach(insight => {
+                    marketingInsights.innerHTML += `
+                        <div class="insight-item">
+                            <div>${insight}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Suggestions
+            const suggestions = document.getElementById('suggestions');
+            suggestions.innerHTML = '';
+            if (analysis.product_insights && analysis.product_insights.suggestions) {
+                analysis.product_insights.suggestions.forEach(suggestion => {
+                    suggestions.innerHTML += `
+                        <div class="insight-item">
+                            <div>${suggestion}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            document.getElementById('results').style.display = 'block';
+        }
+
+        // Global variable to store the last analysis data
+        let lastAnalysisData = null;
+
+        // Update the displayResults function to store the data
+        function displayResults(data) {
+            // Store the data for PDF export
+            lastAnalysisData = data;
+            
+            // Video info
+            const videoInfoDiv = document.getElementById('videoInfo');
+            videoInfoDiv.innerHTML = '<h3>📺 Analyzed Videos</h3>';
+            data.video_info.forEach(video => {
+                videoInfoDiv.innerHTML += `
+                    <div class="video-item">
+                        <strong>${video.title}</strong><br>
+                        <small style="color: #666;">${video.url}</small>
+                    </div>
+                `;
+            });
+
+            // Stats
+            const analysis = data.analysis;
+            const sentiment = analysis.sentiment_summary;
+            const statsGrid = document.getElementById('statsGrid');
+            
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-number">${data.total_videos}</div>
+                    <div class="stat-label">Videos Analyzed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${data.total_comments}</div>
+                    <div class="stat-label">Comments Analyzed</div>
+                </div>
+                <div class="stat-card positive">
+                    <div class="stat-number">${sentiment.positive_count || 0}</div>
+                    <div class="stat-label">Positive Comments</div>
+                </div>
+                <div class="stat-card negative">
+                    <div class="stat-number">${sentiment.negative_count || 0}</div>
+                    <div class="stat-label">Negative Comments</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${sentiment.neutral_count || 0}</div>
+                    <div class="stat-label">Neutral Comments</div>
+                </div>
+            `;
+
+            // Positive themes
+            const positiveThemes = document.getElementById('positiveThemes');
+            positiveThemes.innerHTML = '';
+            if (analysis.key_themes && analysis.key_themes.positive_aspects) {
+                analysis.key_themes.positive_aspects.forEach(theme => {
+                    positiveThemes.innerHTML += `
+                        <div class="theme-item positive">
+                            <div class="theme-title">${theme.theme}</div>
+                            <div class="theme-mentions">Mentioned ${theme.mentions} times</div>
+                            ${theme.sample_comments ? `<div class="sample-comments">"${theme.sample_comments.slice(0, 2).join('" • "')}"</div>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            // Negative themes
+            const negativeThemes = document.getElementById('negativeThemes');
+            negativeThemes.innerHTML = '';
+            if (analysis.key_themes && analysis.key_themes.negative_aspects) {
+                analysis.key_themes.negative_aspects.forEach(theme => {
+                    negativeThemes.innerHTML += `
+                        <div class="theme-item negative">
+                            <div class="theme-title">${theme.theme}</div>
+                            <div class="theme-mentions">Mentioned ${theme.mentions} times</div>
+                            ${theme.sample_comments ? `<div class="sample-comments">"${theme.sample_comments.slice(0, 2).join('" • "')}"</div>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            // Product strengths
+            const productStrengths = document.getElementById('productStrengths');
+            productStrengths.innerHTML = '';
+            if (analysis.product_insights && analysis.product_insights.strengths) {
+                analysis.product_insights.strengths.forEach(strength => {
+                    productStrengths.innerHTML += `
+                        <div class="insight-item positive">
+                            <div class="theme-title">${strength.feature}</div>
+                            <div>${strength.description}</div>
+                            <div class="theme-mentions">Frequency: ${strength.frequency}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Product weaknesses
+            const productWeaknesses = document.getElementById('productWeaknesses');
+            productWeaknesses.innerHTML = '';
+            if (analysis.product_insights && analysis.product_insights.weaknesses) {
+                analysis.product_insights.weaknesses.forEach(weakness => {
+                    productWeaknesses.innerHTML += `
+                        <div class="insight-item negative">
+                            <div class="theme-title">${weakness.feature}</div>
+                            <div>${weakness.description}</div>
+                            <div class="theme-mentions">Frequency: ${weakness.frequency}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Marketing insights
+            const marketingInsights = document.getElementById('marketingInsights');
+            marketingInsights.innerHTML = '';
+            if (analysis.marketing_insights) {
+                analysis.marketing_insights.forEach(insight => {
+                    marketingInsights.innerHTML += `
+                        <div class="insight-item">
+                            <div>${insight}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Suggestions
+            const suggestions = document.getElementById('suggestions');
+            suggestions.innerHTML = '';
+            if (analysis.product_insights && analysis.product_insights.suggestions) {
+                analysis.product_insights.suggestions.forEach(suggestion => {
+                    suggestions.innerHTML += `
+                        <div class="insight-item">
+                            <div>${suggestion}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            document.getElementById('results').style.display = 'block';
+        }
+
+        // PDF Export functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('exportPdfBtn').addEventListener('click', async function() {
+                if (!lastAnalysisData) {
+                    alert('No analysis data available to export. Please run an analysis first.');
+                    return;
+                }
+
+                const exportBtn = document.getElementById('exportPdfBtn');
+                exportBtn.disabled = true;
+                exportBtn.textContent = '📄 Generating PDF...';
+
+                try {
+                    const response = await fetch('/export-pdf', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(lastAnalysisData)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to generate PDF');
+                    }
+
+                    // Create download link
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Competitive_Intelligence_${lastAnalysisData.product_name.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                } catch (error) {
+                    alert('Error generating PDF: ' + error.message);
+                } finally {
+                    exportBtn.disabled = false;
+                    exportBtn.textContent = '📄 Export PDF Report';
+                }
+            });
+        });
+    </script>
+</body>
+</html> 
